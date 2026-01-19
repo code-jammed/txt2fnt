@@ -1,1 +1,54 @@
 # txt2fnt
+
+A tool to convert text files to bitmap font files using fontgen.exe
+All text files under in/text/ are processed to extract unique characters, which are then used to generate bitmap fonts. For xml files, only the text content is considered, any tags or attributes are ignored.
+Some characters are always included like ASCII letters and digits, may support additional config later.
+
+
+
+
+## manually download dependencies before running
+
+### folder: `_tools_`
+
+1. fontgen.exe and its dependencies
+  ([Fontgen V1.1.0](https://github.com/Yanrishatum/fontgen/releases/tag/1.1.0))
+
+### folder: `_tools_\ttf`
+
+1. Place your desired TTF font files in the `_tools_/ttf/` folder.
+
+## Building a Windows EXE
+
+You can create a standalone Windows EXE using PyInstaller. A helper script is provided: `build_exe.ps1`.
+
+Quick steps:
+
+1. Install PyInstaller in your active Python environment: `python -m pip install pyinstaller`.
+2. Run the build script from the repo root in PowerShell: `./build_exe.ps1`.
+
+Notes:
+- By default this build script does not bundle any extra data; if you need `fontgen.exe` included, add `_tools_/fontgen` to `$addDataArgs` in `build_exe.ps1` or pass `--add-data` flags to PyInstaller. TTF files under `_tools_/ttf` are not bundled by default and must be provided externally (for example, place them next to the EXE).
+- On Windows use the same architecture of Python that matches the native `fontgen` binaries.
+
+
+# Unit tests
+```bash
+python test/util/read_xml_txt.py -v
+```
+
+
+
+# txt2fnt supported arguments
+
+-ttf <ttf_file_name> : Specify TTF filename (in `_tools_/ttf/` with/without extension name) to use for font generation
+-o <output_name> : Custom output name for the .fnt and .png file (no extension)
+--output-name : (Alias for -o)
+-fs <size> : Specify font size (default 23)
+--font-size : (Alias for -fs)
+
+# Example usage
+
+```bash
+python txt2fnt.py -ttf ChironHeiHK-Text-R-400.ttf -o noto_sans_cjk_regular -fs 32
+```

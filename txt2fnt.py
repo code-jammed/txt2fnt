@@ -1,0 +1,161 @@
+import os
+import argparse
+import sys
+from source.util.extract_char_set import save_char_set, split_char_set, update_text_file, update_xml_file
+
+ttf_folder = os.path.join("_tools_", "ttf")
+
+workspace_folder = "workspace"
+char2chunkFolder = os.path.join(workspace_folder, "char2chunk")
+text_folder = os.path.join(workspace_folder, "text")
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Generate font files from text and TTF inputs")
+    parser.add_argument("-ttf", dest="ttf", help=f"Specify TTF filename (in {ttf_folder} with/without extension name) to use for font generation")
+    parser.add_argument("-o", "--output-name", dest="output_name", help="Custom output name for the .fnt file (no extension)")
+    parser.add_argument("-fs", "--font-size", dest="font_size", type=int, default=23, help="Specify font size (default 23)")
+    # custom text folder
+    parser.add_argument("-tf", "--text-folder", dest="text_folder", default=text_folder, help=f"Specify text folder (default: {text_folder})")
+
+    # custom fnt output folder
+    parser.add_argument("-ff", "--fnt-folder", dest="fnt_folder", default=None, help="Specify custom output folder for generated .fnt and .png files (default: workspace/fnt)")
+
+    # treat xml as a simple text file (disable xml parsing)
+    parser.add_argument("-txat", "--treat-xml-as-text", dest="treat_xml_as_text", action="store_true", help="Treat XML files as plain text files (disable XML parsing)")
+
+    return parser.parse_args()
+
+
+def main():
+    args = parse_args()
+
+    global text_folder
+    text_folder = args.text_folder
+
+    pwd = os.getcwd()
+    # log present working directory
+    print("Present Working Directory:", pwd)
+
+    # create workspace/text folder if not exists
+    if not os.path.exists(text_folder):
+        os.makedirs(text_folder)
+        # ask user to add text files in the folder and exit
+        print(f"Text folder created at {text_folder}. Please add .txt or .xml files and run again.")
+        sys.exit(1)
+
+    textFolderFilesRaw = os.listdir(text_folder)
+
+    # if no text files found, exit
+    if len(textFolderFilesRaw) == 0:
+        print(f"No text files found in the specified folder. ({text_folder}) Please add .txt or .xml files and run again.")
+        sys.exit(1)
+
+    char_set = set()
+    for file_name in textFolderFilesRaw:
+        file_path = os.path.join(text_folder, file_name)
+        ext = os.path.splitext(file_name)[1].lower()
+        if ext == '.txt':
+            char_set = update_text_file(file_path, char_set)
+        elif ext == '.xml':
+            # treat_xml_as_text
+            if args.treat_xml_as_text:
+                char_set = update_text_file(file_path, char_set)
+            else:
+                char_set = update_xml_file(file_path, char_set)
+
+    accepted_chars, excluded_chars = split_char_set(char_set)
+
+    acceptedCount = len(accepted_chars)
+    excludedCount = len(excluded_chars)
+
+
+    if not os.path.exists(char2chunkFolder):
+        os.makedirs(char2chunkFolder)
+    else:
+        # clean up existing files in char2chunkFolder
+        for file in os.listdir(char2chunkFolder):
+            os.remove(os.path.join(char2chunkFolder, file))
+
+
+    accepted_file = f"extracted_chunk_{acceptedCount}.txt"
+    outFileAccepted = os.path.join(char2chunkFolder, accepted_file)
+    print(f"Accepted Characters ({acceptedCount}): saved to {outFileAccepted}")
+    outFileIgnored = os.path.join(char2chunkFolder, f"igored_{excludedCount}.txt")
+
+
+    save_char_set(accepted_chars, outFileAccepted)
+    save_char_set(excluded_chars, outFileIgnored)
+
+
+    print()
+    print()
+    print("=== Selecting TTF File for Font Generation ===")
+
+    # create the folder if not exists
+    if not os.path.exists(ttf_folder):
+        os.makedirs(ttf_folder)
+        # ask user to add ttf files in the folder and exit
+        print(f"TTF folder created at {ttf_folder}. Please add TTF files and run again.")
+        sys.exit(1)
+
+    # list all ttf files in ttfFolder
+    ttfFiles = [f for f in os.listdir(ttf_folder) if f.endswith('.ttf')]
+    totalTtfFiles = len(ttfFiles)
+    # log total number of ttf files found
+    print("Total TTF Files Found:", totalTtfFiles)
+    # if no ttf files found, exit
+    if totalTtfFiles == 0:
+        print(f"No TTF files found in the specified folder. ({ttf_folder}) Please add TTF files and run again.")
+        sys.exit(1)
+
+    print("Available TTF Files:")
+    # list all ttf files with counter
+    for i, f in enumerate(ttfFiles):
+        print(f"{i + 1}. {f}")
+
+    # default: pick the first ttf file found
+    selectedTtfFile = ttfFiles[0]
+
+    # If user provided -ttf, try to use that (supports basename or full path)
+    if args.ttf:
+        candidate = args.ttf
+        if candidate in ttfFiles:
+            selectedTtfFile = candidate
+        elif candidate + ".ttf" in ttfFiles:
+            selectedTtfFile = candidate + ".ttf"
+        else:
+            print(f"Could not find specified TTF file '{candidate}' in {ttf_folder}.")
+            # exit if not found
+            sys.exit(1)
+
+    ttf_file = os.path.join(ttf_folder, selectedTtfFile)
+
+
+    print()
+    print()
+    print("=== Starting Font Generation ===")
+    char_chunk_file = outFileAccepted
+    custom_fnt_output_name = args.output_name if args.output_name else None
+    # char_chunk_file
+    print("Using Character Chunk File:", char_chunk_file)
+
+    print("Using TTF File:", ttf_file)
+
+    if custom_fnt_output_name:
+        print("Custom FNT Output Name:", custom_fnt_output_name)
+    else:
+        print(f"Using default FNT output name based on TTF filename. ({selectedTtfFile})")
+
+
+    from source.util.fontgen import use_fontgen
+    use_fontgen(
+        char_chunk_file=char_chunk_file,
+        ttf_file=ttf_file,
+        font_size=args.font_size,
+        custom_fnt_output_folder=args.fnt_folder,
+        custom_fnt_output_name=custom_fnt_output_name,
+    )
+
+
+if __name__ == "__main__":
+    main()
